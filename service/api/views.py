@@ -1,10 +1,15 @@
 from typing import List
 
+import pandas as pd
 from fastapi import APIRouter, FastAPI, Request, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from service.api.exceptions import UserNotFoundError, ModelNotFoundError
 from service.log import app_logger
+from service.utils import load_model
+
+
+models = {}
 
 
 class RecoResponse(BaseModel):
@@ -40,6 +45,7 @@ async def get_reco(
     user_id: int,
     token: HTTPAuthorizationCredentials = Depends(auth_scheme)
 ) -> RecoResponse:
+    global models
 
     if not token or token.credentials != request.app.state.api_key:
         raise HTTPException(
@@ -49,18 +55,21 @@ async def get_reco(
         )
 
     app_logger.info(f"Request for model: {model_name}, user_id: {user_id}")
-    model_names = ["test_model"]
 
     if user_id > 10 ** 9:
         raise UserNotFoundError(error_message=f"User {user_id} not found")
 
-    if model_name not in model_names:
+    if model_name not in models:
         raise ModelNotFoundError(error_message=f"Model {model_name} not found")
 
     k_recs = request.app.state.k_recs
-    reco = list(range(k_recs))
-    return RecoResponse(user_id=user_id, items=reco)
+    pred = models[model_name].predict(test=pd.DataFrame({'user_id': [user_id]}))[:k_recs]
+    return RecoResponse(user_id=user_id, items=list(pred.item_id))
 
 
 def add_views(app: FastAPI) -> None:
     app.include_router(router)
+    @app.on_event("startup")
+    async def startup_event():
+        global models
+        models['user_knn'] = load_model(model_path='models/userknn.pickle')
