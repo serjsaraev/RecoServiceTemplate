@@ -10,7 +10,7 @@ class ApproximateNearestNeighbors:
         self,
         model,
         dataset: Dataset,
-        M: int,
+        M: int = Settings.M,
         efC: int = Settings.EFC,
         efS: int = Settings.EFS,
         num_threads: int = Settings.NUM_THREADS,
