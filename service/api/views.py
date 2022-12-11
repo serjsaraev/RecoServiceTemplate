@@ -13,6 +13,7 @@ import json
 
 models = {}
 user_knn_offline = {}
+lightfm_offline = {}
 popular = []
 
 
@@ -49,7 +50,7 @@ async def get_reco(
     user_id: int,
     token: HTTPAuthorizationCredentials = Depends(auth_scheme)
 ) -> RecoResponse:
-    global models, user_knn_offline, popular
+    global models, user_knn_offline, lightfm_offline, popular
 
     if not token or token.credentials != request.app.state.api_key:
         raise HTTPException(
@@ -77,6 +78,10 @@ async def get_reco(
                 items = []
         else:
             items = items[:k_recs]
+    elif model_name == 'lightfm_warp_12':
+        k_recs = request.app.state.k_recs
+        items = lightfm_offline.get(str(user_id), [])
+        items = items[:k_recs]
 
     recs = [p for p in popular if p not in items][:k_recs - len(items)]
     items = list(items) + list(recs)
@@ -87,8 +92,11 @@ def add_views(app: FastAPI) -> None:
     app.include_router(router)
     @app.on_event("startup")
     async def startup_event():
-        global models, user_knn_offline, popular
+        global models, user_knn_offline, lightfm_offline, popular
         models['user_knn'] = load_model(model_path='models/userknn.pickle')
+        models['lightfm_warp_12'] = True
+        with open('offline/lightfm_warp_12.json') as off:
+            lightfm_offline.update(json.load(off))
         with open('offline/user_knn.json') as off:
             user_knn_offline.update(json.load(off))
         with open('offline/popular.json') as pop:
