@@ -63,5 +63,6 @@ class ApproximateNearestNeighbors:
         )
 
     def predict(self, user_id: int):
-        reco_user = self.neighbours[user_id][0]  # type: ignore
-        return self.dataset.item_id_map.convert_to_external(reco_user)
+        int_id = self.dataset.user_id_map.convert_to_internal([user_id])[0]
+        user_recs = self.neighbours[int_id][0]  # type: ignore
+        return self.dataset.item_id_map.convert_to_external(user_recs)
