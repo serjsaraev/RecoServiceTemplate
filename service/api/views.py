@@ -1,6 +1,6 @@
-from typing import List
+import json
+from typing import Any, List
 
-import pandas as pd
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
@@ -8,13 +8,13 @@ from pydantic import BaseModel
 from service.api.exceptions import ModelNotFoundError, UserNotFoundError
 from service.log import app_logger
 from service.utils import load_model
-import json
 
+RECOMMENDATIONS = dict[str, list[int]]
 
-models = {}
-user_knn_offline = {}
-lightfm_offline = {}
-popular = []
+models: dict[str, Any] = {}
+user_knn_offline: RECOMMENDATIONS = {}
+lightfm_offline: RECOMMENDATIONS = {}
+popular: list[int] = []
 
 
 class RecoResponse(BaseModel):
@@ -72,7 +72,10 @@ async def get_reco(
         items = user_knn_offline.get(str(user_id))
         if items is None:
             try:
-                predict = models[model_name].predict_user(user_id=user_id, n_recs=20)[:k_recs]
+                predict = models[model_name].predict_user(
+                    user_id=user_id,
+                    n_recs=20
+                )[:k_recs]
                 items = predict.item_id.tolist()[:k_recs]
             except KeyError:
                 items = []
@@ -90,6 +93,7 @@ async def get_reco(
 
 def add_views(app: FastAPI) -> None:
     app.include_router(router)
+
     @app.on_event("startup")
     async def startup_event():
         global models, user_knn_offline, lightfm_offline, popular
