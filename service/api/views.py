@@ -8,7 +8,9 @@ from pydantic import BaseModel
 from service.api.exceptions import ModelNotFoundError, UserNotFoundError
 from service.log import app_logger
 from service.utils import load_model
+from service.models.popular import get_popular_items
 from service.models.ann import get_ann
+import json
 
 
 RECOMMENDATIONS = Dict[str, List[int]]
@@ -68,7 +70,6 @@ async def get_reco(
 
     if model_name not in models:
         raise ModelNotFoundError(error_message=f"Model {model_name} not found")
-
     k_recs = request.app.state.k_recs
     if model_name == 'user_knn':
         items = user_knn_offline.get(str(user_id))
@@ -110,5 +111,6 @@ def add_views(app: FastAPI) -> None:
             lightfm_offline.update(json.load(off))
         with open('offline/user_knn.json') as off:
             user_knn_offline.update(json.load(off))
-        with open('offline/popular.json') as pop:
-            popular += json.load(pop)
+
+        items = get_popular_items(app.state.k_recs)
+        popular += items
