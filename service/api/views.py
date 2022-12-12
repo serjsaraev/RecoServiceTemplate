@@ -1,5 +1,5 @@
 import json
-from typing import Any, List
+from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -8,13 +8,15 @@ from pydantic import BaseModel
 from service.api.exceptions import ModelNotFoundError, UserNotFoundError
 from service.log import app_logger
 from service.utils import load_model
+from service.models.ann import get_ann
 
-RECOMMENDATIONS = dict[str, list[int]]
 
-models: dict[str, Any] = {}
+RECOMMENDATIONS = Dict[str, List[int]]
+
+models: Dict[str, Any] = {}
 user_knn_offline: RECOMMENDATIONS = {}
 lightfm_offline: RECOMMENDATIONS = {}
-popular: list[int] = []
+popular: List[int] = []
 
 
 class RecoResponse(BaseModel):
@@ -67,8 +69,8 @@ async def get_reco(
     if model_name not in models:
         raise ModelNotFoundError(error_message=f"Model {model_name} not found")
 
+    k_recs = request.app.state.k_recs
     if model_name == 'user_knn':
-        k_recs = request.app.state.k_recs
         items = user_knn_offline.get(str(user_id))
         if items is None:
             try:
@@ -82,9 +84,13 @@ async def get_reco(
         else:
             items = items[:k_recs]
     elif model_name == 'lightfm_warp_12':
-        k_recs = request.app.state.k_recs
         items = lightfm_offline.get(str(user_id), [])
         items = items[:k_recs]
+    elif model_name == 'ann_over_lightfm':
+        try:
+            items = models[model_name].predict(user_id=user_id).tolist()[:k_recs]
+        except (KeyError, IndexError):
+            items = []
 
     recs = [p for p in popular if p not in items][:k_recs - len(items)]
     items = list(items) + list(recs)
@@ -99,6 +105,7 @@ def add_views(app: FastAPI) -> None:
         global models, user_knn_offline, lightfm_offline, popular
         models['user_knn'] = load_model(model_path='models/userknn.pickle')
         models['lightfm_warp_12'] = True
+        models['ann_over_lightfm'] = get_ann()
         with open('offline/lightfm_warp_12.json') as off:
             lightfm_offline.update(json.load(off))
         with open('offline/user_knn.json') as off:

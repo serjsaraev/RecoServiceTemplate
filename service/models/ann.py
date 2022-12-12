@@ -1,6 +1,12 @@
 import nmslib
 import numpy as np
 from rectools.dataset import Dataset
+from rectools import Columns
+
+import pandas as pd
+import numpy as np
+from service.utils import load_model
+
 
 from settings import Settings
 
@@ -66,3 +72,16 @@ class ApproximateNearestNeighbors:
         int_id = self.dataset.user_id_map.convert_to_internal([user_id])[0]
         user_recs = self.neighbours[int_id][0]  # type: ignore
         return self.dataset.item_id_map.convert_to_external(user_recs)
+
+
+def get_ann():
+    interactions = pd.read_csv('data/kion_train/interactions.csv')
+    Columns.Datetime = 'last_watch_dt'
+    interactions.drop(interactions[interactions[Columns.Datetime].str.len() != 10].index, inplace=True)
+    interactions[Columns.Datetime] = pd.to_datetime(interactions[Columns.Datetime], format='%Y-%m-%d')
+    interactions[Columns.Weight] = np.where(interactions['watched_pct'] > 10, 3, 1)
+    dataset = Dataset.construct(interactions_df=interactions)
+    model = load_model('models/warp_12.pickle')
+    ann = ApproximateNearestNeighbors(model=model, dataset=dataset)
+    ann.fit(k_reco=10)
+    return ann
