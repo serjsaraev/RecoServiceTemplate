@@ -112,5 +112,5 @@ def add_views(app: FastAPI) -> None:
         with open('offline/user_knn.json') as off:
             user_knn_offline.update(json.load(off))
 
-        items = get_popular_items(app.state.k_recs)
+        items = get_popular_items('default', app.state.k_recs)
         popular += items
