@@ -1,13 +1,11 @@
 import nmslib
-import numpy as np
-from rectools.dataset import Dataset
-from rectools import Columns
-
 import pandas as pd
 import numpy as np
+
+from rectools import Columns
+from rectools.dataset import Dataset
+
 from service.utils import load_model
-
-
 from settings import Settings
 
 
@@ -44,11 +42,11 @@ class ApproximateNearestNeighbors:
 
         extra_dim = np.sqrt(max_norm ** 2 - normed_factors ** 2).reshape(-1, 1)
         augmented_factors = np.append(factors, extra_dim, axis=1)
-        return max_norm, augmented_factors
+        return augmented_factors
 
     def fit(self, k_reco: int = 10):
         user_embeddings, item_embeddings = self.model.get_vectors(self.dataset)
-        max_norm, augmented_item_embeddings = self.augment_inner_product(
+        augmented_item_embeddings = self.augment_inner_product(
             item_embeddings
         )
         extra_zero = np.zeros((user_embeddings.shape[0], 1))
@@ -74,14 +72,21 @@ class ApproximateNearestNeighbors:
         return self.dataset.item_id_map.convert_to_external(user_recs)
 
 
-def get_ann():
+def get_ann(k_reco):
     interactions = pd.read_csv('data/kion_train/interactions.csv')
     Columns.Datetime = 'last_watch_dt'
-    interactions.drop(interactions[interactions[Columns.Datetime].str.len() != 10].index, inplace=True)
-    interactions[Columns.Datetime] = pd.to_datetime(interactions[Columns.Datetime], format='%Y-%m-%d')
-    interactions[Columns.Weight] = np.where(interactions['watched_pct'] > 10, 3, 1)
+    interactions.drop(
+        interactions[interactions[Columns.Datetime].str.len() != 10].index,
+        inplace=True
+    )
+    interactions[Columns.Datetime] = pd.to_datetime(
+        interactions[Columns.Datetime], format='%Y-%m-%d'
+    )
+    interactions[Columns.Weight] = np.where(
+        interactions['watched_pct'] > 10, 3, 1
+    )
     dataset = Dataset.construct(interactions_df=interactions)
     model = load_model('models/warp_12.pickle')
     ann = ApproximateNearestNeighbors(model=model, dataset=dataset)
-    ann.fit(k_reco=10)
+    ann.fit(k_reco=k_reco)
     return ann

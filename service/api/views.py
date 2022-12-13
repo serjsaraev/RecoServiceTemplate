@@ -7,10 +7,9 @@ from pydantic import BaseModel
 
 from service.api.exceptions import ModelNotFoundError, UserNotFoundError
 from service.log import app_logger
-from service.utils import load_model
 from service.models.popular import get_popular_items
-from service.models.ann import get_ann
-import json
+from service.models import ann
+from service.utils import load_model
 
 
 RECOMMENDATIONS = Dict[str, List[int]]
@@ -86,15 +85,16 @@ async def get_reco(
             items = items[:k_recs]
     elif model_name == 'lightfm_warp_12':
         items = lightfm_offline.get(str(user_id), [])
-        items = items[:k_recs]
+        items = items[:k_recs]  # type: ignore
     elif model_name == 'ann_over_lightfm':
         try:
             items = models[model_name].predict(user_id=user_id).tolist()[:k_recs]
         except (KeyError, IndexError):
             items = []
 
-    recs = [p for p in popular if p not in items][:k_recs - len(items)]
-    items = list(items) + list(recs)
+    recs = [p for p in popular if p not in items]  # type: ignore
+    recs = recs[:k_recs - len(items)]  # type: ignore
+    items = list(items) + list(recs)  # type: ignore
     return RecoResponse(user_id=user_id, items=items)
 
 
@@ -106,7 +106,7 @@ def add_views(app: FastAPI) -> None:
         global models, user_knn_offline, lightfm_offline, popular
         models['user_knn'] = load_model(model_path='models/userknn.pickle')
         models['lightfm_warp_12'] = True
-        models['ann_over_lightfm'] = get_ann()
+        models['ann_over_lightfm'] = ann.get_ann(k_reco=app.state.k_recs)
         with open('offline/lightfm_warp_12.json') as off:
             lightfm_offline.update(json.load(off))
         with open('offline/user_knn.json') as off:
